@@ -1,0 +1,54 @@
+<domain type='kvm'>
+    <name>{name}</name>
+    <uuid>{uuid}</uuid>
+    <memory unit='MiB'>{memory_size}</memory>
+    <vcpu placement='static'>{vcpu_count}</vcpu>
+
+    <os>
+        <type arch='x86_64' machine='pc'>hvm</type>
+        <boot dev='hd'/>
+    </os>
+
+    <features>
+        <acpi/>
+        <apic/>
+    </features>
+
+    <devices>
+    <!-- Main disk with backing store -->
+        <disk type='file' device='disk'>
+        <driver name='qemu' type='qcow2'/>
+        <source file='{disk_path}'/>
+        <backingStore type='file'>
+            <format type='qcow2'/>
+            <source file='{image_path}'/>
+        </backingStore>
+        <target dev='vda' bus='virtio'/>
+    </disk>
+
+    <!-- Cloud-init seed ISO -->
+    <disk type='file' device='cdrom'>
+        <driver name='qemu' type='raw'/>
+        <source file='{seed_path}'/>
+        <target dev='hdc' bus='ide'/>
+        <readonly/>
+    </disk>
+
+    <!-- Network interface (Bridged or NAT for SSH) -->
+    <interface type='network'>
+        <source network='default'/>
+        <model type='virtio'/>
+    </interface>
+
+    <!-- Console and serial for debugging -->
+    <serial type='pty'>
+        <target port='0'/>
+    </serial>
+    <console type='pty'>
+        <target type='serial' port='0'/>
+    </console>
+
+    <!-- Virtio graphics (for GUI access via VNC or Spice if needed) -->
+    <graphics type='vnc' port='-1' listen='127.0.0.1'/>
+    </devices>
+</domain>

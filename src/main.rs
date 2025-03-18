@@ -27,6 +27,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use virt::{connect::Connect, error::clear_error_callback};
 
+use crate::errors::handle_404;
 use crate::{
     repositories::{
         domain_repository::DomainRepository, os_image_repository::OsImageRepository,
@@ -34,6 +35,7 @@ use crate::{
         user_repository::UserRepository,
     },
     routes::{domain_router, os_image_router, ssh_key_router, token_router, user_router},
+    utils::app_state::AppState,
 };
 
 #[tokio::main]
@@ -81,14 +83,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .merge(os_image_router::routes())
                 .merge(ssh_key_router::routes()),
         )
-        .with_state(AppState {
+        .with_state(AppState::new(
+            UserRepository::new(pool.clone()),
+            RefreshTokenRepository::new(pool.clone()),
+            DomainRepository::new(pool.clone()),
+            OsImageRepository::new(pool.clone()),
+            SshKeyRepository::new(pool.clone()),
             hypervisor_connection,
-            user_repository: UserRepository::new(pool.clone()),
-            refresh_token_repository: RefreshTokenRepository::new(pool.clone()),
-            domain_repository: DomainRepository::new(pool.clone()),
-            os_image_repository: OsImageRepository::new(pool.clone()),
-            ssh_key_repository: SshKeyRepository::new(pool.clone()),
-        })
+        ))
         .fallback(handle_404);
 
     // run our app with hyper, listening globally on port 3000
@@ -97,18 +99,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
-}
-
-#[derive(Clone)]
-pub struct AppState {
-    user_repository: UserRepository,
-    refresh_token_repository: RefreshTokenRepository,
-    domain_repository: DomainRepository,
-    os_image_repository: OsImageRepository,
-    ssh_key_repository: SshKeyRepository,
-    hypervisor_connection: Connect,
-}
-
-async fn handle_404() -> impl IntoResponse {
-    errors::Error::NotFound
 }

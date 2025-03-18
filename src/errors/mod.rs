@@ -1,8 +1,10 @@
 pub mod auth_error;
 
-use std::borrow::{Borrow, Cow};
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{
+    borrow::{Borrow, Cow},
+    collections::HashMap,
+    fmt::Debug,
+};
 
 use anyhow::anyhow;
 use axum::{
@@ -14,7 +16,7 @@ use serde_json;
 use tracing::error;
 
 use crate::{
-    errors::auth_error::AuthError,
+    errors::{self, auth_error::AuthError},
     utils::{jsend::JSend, validation},
 };
 
@@ -72,4 +74,7 @@ impl IntoResponse for Error {
 
         (self.status_code(), JSend::fail(self.to_string())).into_response()
     }
+}
+pub async fn handle_404() -> impl IntoResponse {
+    Error::NotFound
 }

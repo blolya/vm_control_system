@@ -1,7 +1,7 @@
+use crate::{repositories::domain_repository, utils::vm::domain::get_ip_address};
 use serde::Serialize;
 use uuid::Uuid;
 use virt::domain::Domain;
-use crate::{utils::vm::domain::get_ip_address, repositories::domain_repository};
 
 #[derive(Serialize)]
 pub struct DomainView {

@@ -1,3 +1,5 @@
+use std::{env, fs};
+
 use anyhow::anyhow;
 use axum::{
     extract::{Json, Path, State},
@@ -5,20 +7,13 @@ use axum::{
     Router,
 };
 use serde::Deserialize;
-use std::{env, fs};
 use uuid::Uuid;
 
 use crate::{
-    utils::{
-        vm::domain,
-        auth::claims::Claims,
-        jsend::JSend,
-        result::Result,
-        vm
-    },
-    AppState,
     errors::Error,
-    views::domain_view::DomainView
+    utils::{auth::claims::Claims, jsend::JSend, result::Result, vm},
+    views::domain_view::DomainView,
+    AppState,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -77,7 +72,7 @@ async fn create(
     let base_dir = env::var("BASE_PATH").unwrap();
     let vm_directory = format!("{base_dir}/vms/{domain_id}");
 
-    let domain = vm::init_vm(
+    let domain = vm::init(
         &hypervisor_connection,
         &vm_directory,
         &os_image.path,
@@ -113,11 +108,14 @@ async fn create(
 async fn list(
     _claims: Claims,
     State(AppState {
-        domain_repository, hypervisor_connection, ..
+        domain_repository,
+        hypervisor_connection,
+        ..
     }): State<AppState>,
 ) -> Result<JSend<Vec<DomainView>>> {
-    let domains = domain_repository.list().await?;
-    let domains = domains.into_iter().map(|d| (domain::find_by_id(&hypervisor_connection, *d.id()).unwrap(), d)).map(DomainView::from).collect();
+    let domains = vm::list(&domain_repository, &hypervisor_connection)
+        .await
+        .map_err(|e| anyhow!(e))?;
     Ok(JSend::success(Some(domains)))
 }
 async fn pause(
@@ -127,9 +125,11 @@ async fn pause(
         ..
     }): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<JSend<()>> {
-    vm::suspend_vm(&hypervisor_connection, id)?;
-    Ok(JSend::success(Some(())))
+) -> Result<()> {
+    vm::pause(id, &hypervisor_connection)
+        .await
+        .map_err(|e| anyhow!(e))?;
+    Ok(())
 }
 async fn destroy(
     _claims: Claims,
@@ -139,42 +139,35 @@ async fn destroy(
         ..
     }): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<JSend<()>> {
-    let domain = domain::find_by_id(&hypervisor_connection, id)?;
-    if (domain.is_active()?) {
-        vm::destroy_vm(&hypervisor_connection, id).map_err(|e| Error::Anyhow(anyhow!(e)))?;
-        vm::undefine_vm(&hypervisor_connection, id).map_err(|e| Error::Anyhow(anyhow!(e)))?;
-    } else {
-        vm::undefine_vm(&hypervisor_connection, id).map_err(|e| Error::Anyhow(anyhow!(e)))?;
-    }
-    let base_dir = env::var("BASE_PATH").unwrap();
-    let vm_directory = format!("{base_dir}/vms/{id}");
-    fs::remove_dir_all(&vm_directory).map_err(|e| Error::Anyhow(anyhow!(e)))?;
-
-    domain_repository.delete(id).await?;
-    Ok(JSend::success(Some(())))
+) -> Result<()> {
+    vm::destroy(id, &domain_repository, &hypervisor_connection)
+        .await
+        .map_err(|e| anyhow!(e))?;
+    Ok(())
 }
 async fn reboot(
     _claims: Claims,
     State(AppState {
-        domain_repository,
         hypervisor_connection,
         ..
     }): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<JSend<()>> {
-    vm::reboot_vm(&hypervisor_connection, id)?;
-    Ok(JSend::success(Some(())))
+) -> Result<()> {
+    vm::reboot(id, &hypervisor_connection)
+        .await
+        .map_err(|e| anyhow!(e))?;
+    Ok(())
 }
 async fn resume(
     _claims: Claims,
     State(AppState {
-        domain_repository,
         hypervisor_connection,
         ..
     }): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<JSend<()>> {
-    vm::resume_vm(&hypervisor_connection, id)?;
-    Ok(JSend::success(Some(())))
+) -> Result<()> {
+    vm::resume(id, &hypervisor_connection)
+        .await
+        .map_err(|e| anyhow!(e))?;
+    Ok(())
 }
